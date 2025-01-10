@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Timer Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .timer-container, .past-timer-container {
+            width: 300px;
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #ffffff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .timer-header {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+        }
+        button {
+            padding: 5px 10px;
+            margin-top: 5px;
+        }
+        .calendar {
+            margin-top: 20px;
+        }
+        .day {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            line-height: 30px;
+            margin: 2px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+        .completed {
+            background-color: #c8e6c9;
+        }
+        .missed {
+            background-color: #ffcdd2;
+        }
+        .add-timer {
+            margin: 20px 0;
+            padding: 10px;
+            background-color: #ffffff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .past-timers {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Task Timer Tracker</h1>
+
+    <div id="timers"></div>
+
+    <div class="add-timer">
+        <h2>Add Timer</h2>
+        <input type="text" id="timer-name" placeholder="Timer Name">
+        <input type="text" id="timer-duration" placeholder="Duration (minutes, e.g., 80 for 1h 20m)">
+        <button onclick="addTimer()">Add Timer</button>
+    </div>
+
+    <div id="past-timers" class="past-timers">
+        <h2>Past Timers</h2>
+    </div>
+
+    <div class="calendar" id="calendar"></div>
+
+    <script>
+        const timers = [];
+        const timerHistory = [];
+        const audio = new Audio('https://www.soundjay.com/button/beep-07.wav'); 
+
+        const timerContainer = document.getElementById('timers');
+        const pastTimersContainer = document.getElementById('past-timers');
+        const calendar = document.getElementById('calendar');
+
+        function formatTime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            return `${hours > 0 ? hours + 'h ' : ''}${minutes}m ${secs < 10 ? '0' : ''}${secs}s`;
+        }
+
+        function parseDuration(input) {
+            const totalMinutes = parseInt(input);
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+            return { totalSeconds: totalMinutes * 60, formatted: `${hours > 0 ? hours + 'h ' : ''}${minutes}m` };
+        }
+
+        function startTimer(index, duration) {
+            let timeLeft = duration;
+            timers[index].timeLeft = timeLeft;
+            const timerDiv = document.getElementById(`timer-${index}`);
+            const interval = setInterval(() => {
+                timeLeft--;
+                timerDiv.textContent = `Time left: ${formatTime(timeLeft)}`;
+                timers[index].timeLeft = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(interval);
+                    timerDiv.textContent = 'Completed!';
+                    markCalendar(true);
+                    audio.play();
+                    logHistory(timers[index].label, 'Completed', timers[index].duration);
+                    moveToPastTimers(index, 'Completed', timers[index].duration);
+                }
+            }, 1000);
+            timers[index].interval = interval;
+            logHistory(timers[index].label, 'Started');
+        }
+
+        function pauseTimer(index) {
+            clearInterval(timers[index].interval);
+            logHistory(timers[index].label, 'Paused');
+        }
+
+        function resumeTimer(index) {
+            startTimer(index, timers[index].timeLeft);
+            logHistory(timers[index].label, 'Resumed');
+        }
+
+        function stopTimer(index) {
+            clearInterval(timers[index].interval);
+            const timeElapsed = timers[index].duration - timers[index].timeLeft;
+            moveToPastTimers(index, 'Stopped', formatTime(timeElapsed));
+            logHistory(timers[index].label, 'Stopped', formatTime(timeElapsed));
+        }
+
+        function moveToPastTimers(index, status, timeElapsed) {
+            const pastTimerDiv = document.createElement('div');
+            pastTimerDiv.className = 'past-timer-container';
+            pastTimerDiv.innerHTML = `
+                <div class="timer-header">${timers[index].label} - ${status} (${timeElapsed})</div>
+            `;
+            pastTimersContainer.appendChild(pastTimerDiv);
+            timers.splice(index, 1);
+            renderTimers();
+        }
+
+        function addTimer() {
+            const name = document.getElementById('timer-name').value;
+            const durationInput = document.getElementById('timer-duration').value;
+            const { totalSeconds, formatted } = parseDuration(durationInput);
+            if (name && totalSeconds > 0) {
+                timers.push({ label: name, duration: totalSeconds, timeLeft: totalSeconds });
+                renderTimers();
+            }
+        }
+
+        function renderTimers() {
+            timerContainer.innerHTML = '';
+            timers.forEach((timer, index) => {
+                const div = document.createElement('div');
+                div.className = 'timer-container';
+                div.innerHTML = `
+                    <div class="timer-header">${timer.label}</div>
+                    <div id="timer-${index}">Time left: ${formatTime(timer.timeLeft)}</div>
+                    <div class="controls">
+                        <button onclick="startTimer(${index}, ${timer.duration})">Start</button>
+                        <button onclick="pauseTimer(${index})">Pause</button>
+                        <button onclick="resumeTimer(${index})">Resume</button>
+                        <button onclick="stopTimer(${index})">Stop</button>
+                    </div>
+                `;
+                timerContainer.appendChild(div);
+            });
+        }
+
+        function markCalendar(completed) {
+            const div = document.createElement('div');
+            div.className = `day ${completed ? 'completed' : 'missed'}`;
+            div.textContent = new Date().getDate();
+            calendar.appendChild(div);
+        }
+
+        function logHistory(timerName, action, duration = '') {
+            timerHistory.push({ name: timerName, action: action, duration: duration, date: new Date().toLocaleString() });
+            console.log(timerHistory);
+        }
+    </script>
+</body>
+</html>
